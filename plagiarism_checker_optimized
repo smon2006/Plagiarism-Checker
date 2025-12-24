@@ -1,0 +1,327 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <unordered_set>
+#include <unordered_map>
+#include <cmath>
+#include <iomanip>
+
+using namespace std;
+
+// to make the whole text lowercase
+string makelower(string s)
+{
+    int n = s.length();
+    for (int i = 0; i < n; i++)
+    {
+        s[i] = tolower(s[i]);
+    }
+    return s;
+}
+
+// to remove any punctuations
+string removepunc(string s)
+{
+    string result = "";
+    int n = s.length();
+    for (int i = 0; i < n; i++)
+    {
+        if (isalnum(s[i]) || s[i] == ' ')
+        {
+            result += s[i];
+        }
+    }
+    return result;
+}
+
+// to split the words and store in an array
+vector<string> splitwords(string s)
+{
+    string a = "";
+    vector<string> ans;
+    int n = s.length();
+    for (int i = 0; i < n; i++)
+    {
+        if (s[i] == ' ')
+        {
+            if (!a.empty())
+            {
+                ans.push_back(a);
+                a = "";
+            }
+        }
+        else
+        {
+            a += s[i];
+        }
+    }
+    if (!a.empty())
+    {
+        ans.push_back(a);
+    }
+    return ans;
+}
+
+// Remove common stop words
+vector<string> removestopwords(vector<string> words)
+{
+    unordered_set<string> stopwords = {"the", "and", "a", "an", "in", "on", "at", "to", "for", "of", "with", "by", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had"};
+    vector<string> filter;
+    for (int i = 0; i < words.size(); i++)
+    {
+        if (stopwords.find(words[i]) == stopwords.end() && words[i].length() > 2)
+        {
+            filter.push_back(words[i]);
+        }
+    }
+    return filter;
+}
+
+// Algorithm 1: Original word match
+double check_wordmatch(vector<string> word1, vector<string> word2)
+{
+    double match = 0;
+    double tot = word1.size();
+
+    if (tot == 0)
+        return 0.0;
+
+    unordered_set<string> word2set(word2.begin(), word2.end());
+
+    for (int i = 0; i < word1.size(); i++)
+    {
+        if (word2set.find(word1[i]) != word2set.end())
+        {
+            match++;
+        }
+    }
+
+    return (match) / tot;
+}
+
+// Algorithm 2: Jaccard Similarity
+double check_jaccard(vector<string> word1, vector<string> word2)
+{
+    unordered_set<string> set1(word1.begin(), word1.end());
+    unordered_set<string> set2(word2.begin(), word2.end());
+
+    if (set1.empty() && set2.empty())
+        return 1.0;
+    if (set1.empty() || set2.empty())
+        return 0.0;
+
+    int intersection = 0;
+    for (const string &word : set1)
+    {
+        if (set2.find(word) != set2.end())
+        {
+            intersection++;
+        }
+    }
+
+    int unionsize = set1.size() + set2.size() - intersection;
+
+    return (double)(intersection) / unionsize;
+}
+
+// Algorithm 3: Cosine Similarity
+double check_cosine(vector<string> word1, vector<string> word2)
+{
+    unordered_map<string, int> freq1;
+    unordered_map<string, int> freq2;
+
+    // Count word frequencies
+    for (int i = 0; i < word1.size(); i++)
+        freq1[word1[i]]++;
+    for (int i = 0; i < word2.size(); i++)
+        freq2[word2[i]]++;
+
+    // Calculate dot product
+    double dot = 0.0;
+    for (const auto &pair : freq1)
+    {
+        dot += pair.second * freq2[pair.first];
+    }
+
+    // Calculate magnitudes
+    double mag1 = 0.0, mag2 = 0.0;
+    for (const auto &pair : freq1)
+        mag1 += pair.second * pair.second;
+    for (const auto &pair : freq2)
+        mag2 += pair.second * pair.second;
+
+    mag1 = sqrt(mag1);
+    mag2 = sqrt(mag2);
+
+    if (mag1 == 0 || mag2 == 0)
+        return 0.0;
+
+    return dot / (mag1 * mag2);
+}
+
+// Algorithm 4: N-gram Similarity
+double check_ngram(vector<string> word1, vector<string> word2, int n = 3)
+{
+    if (word1.size() < n || word2.size() < n)
+    {
+        return check_jaccard(word1, word2);
+    }
+
+    unordered_set<string> ngrams1;
+    unordered_set<string> ngrams2;
+
+    // Generate n-grams for document 1
+    for (size_t i = 0; i <= word1.size() - n; i++)
+    {
+        string ngram;
+        for (int j = 0; j < n; j++)
+        {
+            if (j > 0)
+                ngram += " ";
+            ngram += word1[i + j];
+        }
+        ngrams1.insert(ngram);
+    }
+
+    // Generate n-grams for document 2
+    for (size_t i = 0; i <= word2.size() - n; i++)
+    {
+        string ngram;
+        for (int j = 0; j < n; j++)
+        {
+            if (j > 0)
+                ngram += " ";
+            ngram += word2[i + j];
+        }
+        ngrams2.insert(ngram);
+    }
+
+    // Calculate Jaccard similarity of n-grams
+    int intersection = 0;
+    for (const string &ngram : ngrams1)
+    {
+        if (ngrams2.find(ngram) != ngrams2.end())
+        {
+            intersection++;
+        }
+    }
+
+    int unionsize = ngrams1.size() + ngrams2.size() - intersection;
+
+    if (unionsize == 0)
+        return 0.0;
+    return static_cast<double>(intersection) / unionsize;
+}
+
+string readFile(string filename)
+{
+    ifstream file(filename);
+    string content = "";
+    string line;
+
+    if (file.is_open())
+    {
+        while (getline(file, line))
+        {
+            content += line + " ";
+        }
+        file.close();
+    }
+    else
+    {
+        cout << "Error: Cannot open file " << filename << endl;
+    }
+
+    return content;
+}
+
+int main()
+{
+    string file1, file2;
+
+    cout << "ADVANCED PLAGIARISM CHECKER" << endl;
+    cout << "============================" << endl;
+    cout << "Enter first file name: ";
+    cin >> file1;
+    cout << "Enter second file name: ";
+    cin >> file2;
+
+    string text1 = readFile(file1);
+    string text2 = readFile(file2);
+
+    if (text1.empty() || text2.empty())
+    {
+        cout << "Error reading files. Please check file names." << endl;
+        return 1;
+    }
+
+    cout << "\nProcessing files..." << endl;
+    text1 = makelower(text1);
+    text2 = makelower(text2);
+    text1 = removepunc(text1);
+    text2 = removepunc(text2);
+
+    vector<string> word1 = splitwords(text1);
+    vector<string> word2 = splitwords(text2);
+
+    // Remove stop words for better accuracy
+    vector<string> filtered1 = removestopwords(word1);
+    vector<string> filtered2 = removestopwords(word2);
+
+    cout << "File 1 has " << word1.size() << " words (" << filtered1.size() << " after filtering)" << endl;
+    cout << "File 2 has " << word2.size() << " words (" << filtered2.size() << " after filtering)" << endl;
+
+    // Calculate multiple similarity scores
+    double wordmatch = check_wordmatch(filtered1, filtered2);
+    double jaccard = check_jaccard(filtered1, filtered2);
+    double cosine = check_cosine(filtered1, filtered2);
+    double ngram = check_ngram(filtered1, filtered2, 3);
+
+    // Weighted average of all algorithms
+    double weighted_score = (wordmatch * 0.25) + (jaccard * 0.25) + (cosine * 0.30) + (ngram * 0.20);
+
+    // Apply sigmoid function for better distribution
+    double final_score = 1.0 / (1.0 + exp(-(weighted_score - 0.5) * 10));
+
+    double percent = final_score * 100;
+
+    cout << "\nDETAILED RESULTS" << endl;
+    cout << "================" << endl;
+    cout << fixed << setprecision(2);
+    cout << "Word Match Similarity: " << (wordmatch * 100) << "%" << endl;
+    cout << "Jaccard Similarity:    " << (jaccard * 100) << "%" << endl;
+    cout << "Cosine Similarity:     " << (cosine * 100) << "%" << endl;
+    cout << "N-gram Similarity:     " << (ngram * 100) << "%" << endl;
+    cout << "--------------------------------" << endl;
+    cout << "FINAL SIMILARITY SCORE: " << percent << "%" << endl;
+
+    if (percent > 85)
+    {
+        cout << "\n  HIGH PLAGIARISM RISK!" << endl;
+        cout << "Strong evidence of copying detected." << endl;
+    }
+    else if (percent > 65)
+    {
+        cout << "\n  MODERATE PLAGIARISM RISK" << endl;
+        cout << "Significant similarities found. Review needed." << endl;
+    }
+    else if (percent > 40)
+    {
+        cout << "\n  SOME MATCHING CONTENT" << endl;
+        cout << "May include common phrases or references." << endl;
+    }
+    else if (percent > 20)
+    {
+        cout << "\n NORMAL COMMON WORDS" << endl;
+        cout << "Minimal similarity detected." << endl;
+    }
+    else
+    {
+        cout << "\n ORIGINAL CONTENT" << endl;
+        cout << "Documents appear to be independent." << endl;
+    }
+
+    return 0;
+}

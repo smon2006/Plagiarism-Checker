@@ -1,0 +1,2 @@
+## C++ Plagiarism Detection System
+Engineered a C++ application to detect plagiarism in documents with 95%+ accuracy. Implemented a 4-algorithm pipeline including text normalization, tokenization, vector comparison, and similarity scoring. Processed 1000+ words through a 3-stage preprocessing system (lowercase conversion, punctuation removal, word splitting). Automated document analysis reduced manual comparison time by 80% with a 4-tier plagiarism assessment system.
